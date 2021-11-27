@@ -4,6 +4,11 @@
 #include <dirent.h>
 #include <stdbool.h>
 
+/*
+   This implementation of the Advanced Encryption Standard automatically pads and unpads
+   input for you, if it's not divisible by the block size :)
+   Source: https://github.com/kokke/tiny-AES-c 
+*/
 #include "tiny-AES-c/aes.h"
 
 // d_type = 4 -> directory
@@ -107,6 +112,7 @@ int main()
     // array of strings contain relative path to the files to be encrypted
     char **files = find_files(FILES_TO_ENCRYPT);
     char i = 1;
+    // TO-DO: add arg when running to choose between encrypting or decrypting
     bool encrypt = true;
 
     if (files == NULL) {
@@ -153,8 +159,3 @@ int main()
  
     }
 }
-
-
-// AES stuff
-// encrypt, pad
-// decrypt, unpad
