@@ -21,7 +21,7 @@ esac
 for file in $FILES_TO_ENCRYPT
 do
     # avoids encrypting this file
-    [ "$file" -eq "$0" ] && continue
+    [ "$file" == "$0" ] && continue
 
     if [ "$enc_or_dec" -eq "0" ]
     then
